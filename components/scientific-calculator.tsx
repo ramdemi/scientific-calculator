@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun, SunMoon, History } from "lucide-react";
+import { useWindowSize } from "hooks/use-windowsize";
 import {
   evaluateUnary,
   evaluateBinary,
@@ -11,10 +12,7 @@ import {
 } from "@/lib/calculator";
 import { CalculatorDisplay } from "./calculator-display";
 import { CalculatorButton, type ButtonVariant } from "./calculator-button";
-import {
-  CalculatorHistory,
-  type HistoryEntry,
-} from "./calculator-history";
+import { CalculatorHistory, type HistoryEntry } from "./calculator-history";
 
 type CalcState = "input" | "operator" | "result" | "error";
 
@@ -39,7 +37,7 @@ export function ScientificCalculator() {
   const [parenStack, setParenStack] = useState<
     { value: number; op: string | null }[]
   >([]);
-
+  const size = useWindowSize();
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -71,7 +69,7 @@ export function ScientificCalculator() {
         setDisplay(display + digit);
       }
     },
-    [display, calcState]
+    [display, calcState],
   );
 
   const handleClear = useCallback(() => {
@@ -114,7 +112,7 @@ export function ScientificCalculator() {
       setPendingBinaryFn(null);
       setCalcState("operator");
     },
-    [currentValue, pendingOp, prevValue, display, calcState]
+    [currentValue, pendingOp, prevValue, display, calcState],
   );
 
   const handleBinaryFunction = useCallback(
@@ -126,7 +124,7 @@ export function ScientificCalculator() {
       setExpression(`${getFnLabel(fn)}(${formatResult(current)}, `);
       setCalcState("operator");
     },
-    [currentValue]
+    [currentValue],
   );
 
   const handleEquals = useCallback(() => {
@@ -147,7 +145,11 @@ export function ScientificCalculator() {
 
     const formatted = formatResult(result);
 
-    if (formatted === "Error" || formatted === "Infinity" || formatted === "-Infinity") {
+    if (
+      formatted === "Error" ||
+      formatted === "Infinity" ||
+      formatted === "-Infinity"
+    ) {
       setDisplay(formatted);
       setCalcState("error");
     } else {
@@ -160,7 +162,10 @@ export function ScientificCalculator() {
     setPrevValue(null);
     setPendingOp(null);
     setPendingBinaryFn(null);
-    setHistory((prev) => [...prev, { expression: `${expr} =`, result: formatted }]);
+    setHistory((prev) => [
+      ...prev,
+      { expression: `${expr} =`, result: formatted },
+    ]);
   }, [currentValue, pendingOp, pendingBinaryFn, prevValue]);
 
   const handleUnary = useCallback(
@@ -181,7 +186,7 @@ export function ScientificCalculator() {
         setLastAnswer(result);
       }
     },
-    [currentValue, angleMode]
+    [currentValue, angleMode],
   );
 
   const handleNegate = useCallback(() => {
@@ -219,7 +224,7 @@ export function ScientificCalculator() {
       }
       setCalcState("input");
     },
-    [lastAnswer, calcState]
+    [lastAnswer, calcState],
   );
 
   const handleScientificNotation = useCallback(() => {
@@ -232,7 +237,10 @@ export function ScientificCalculator() {
   const handleParen = useCallback(
     (type: "(" | ")") => {
       if (type === "(") {
-        setParenStack((prev) => [...prev, { value: prevValue ?? 0, op: pendingOp }]);
+        setParenStack((prev) => [
+          ...prev,
+          { value: prevValue ?? 0, op: pendingOp },
+        ]);
         setPrevValue(null);
         setPendingOp(null);
         setOpenParens((p) => p + 1);
@@ -255,7 +263,7 @@ export function ScientificCalculator() {
         setExpression((prev) => prev + formatResult(current) + ")");
       }
     },
-    [openParens, currentValue, pendingOp, prevValue, parenStack]
+    [openParens, currentValue, pendingOp, prevValue, parenStack],
   );
 
   // Memory functions
@@ -296,8 +304,7 @@ export function ScientificCalculator() {
       else if (e.key === "/") {
         e.preventDefault();
         performBinaryOp("divide");
-      }
-      else if (e.key === "Enter" || e.key === "=") handleEquals();
+      } else if (e.key === "Enter" || e.key === "=") handleEquals();
       else if (e.key === "Escape") handleClear();
       else if (e.key === "Backspace") handleDelete();
       else if (e.key === "%") handleUnary("percent");
@@ -306,7 +313,15 @@ export function ScientificCalculator() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [appendDigit, performBinaryOp, handleEquals, handleClear, handleDelete, handleUnary, handleParen]);
+  }, [
+    appendDigit,
+    performBinaryOp,
+    handleEquals,
+    handleClear,
+    handleDelete,
+    handleUnary,
+    handleParen,
+  ]);
 
   // Button click handler
   const handleButton = useCallback(
@@ -324,10 +339,15 @@ export function ScientificCalculator() {
         tenx: "log10",
         twox: "log2",
         exp: "ln",
+        round: "npr",
+        deg2rad: "ncr",
+        rad2deg: "gcd",
+        pi: "lcm",
+        rand: "floor",
+        rando: "ceil",
       };
 
-      const effectiveId =
-        isSecond && secondMap[id] ? secondMap[id] : id;
+      const effectiveId = isSecond && secondMap[id] ? secondMap[id] : id;
 
       // Digits
       if (/^[0-9]$/.test(effectiveId)) {
@@ -340,27 +360,56 @@ export function ScientificCalculator() {
       }
 
       // Basic operators
-      if (["add", "subtract", "multiply", "divide", "mod"].includes(effectiveId)) {
+      if (
+        ["add", "subtract", "multiply", "divide", "mod"].includes(effectiveId)
+      ) {
         performBinaryOp(effectiveId);
         return;
       }
 
       // Binary functions
-      if (["power", "nthroot", "logyx", "npr", "ncr", "gcd", "lcm"].includes(effectiveId)) {
+      if (
+        ["power", "nthroot", "logyx", "npr", "ncr", "gcd", "lcm"].includes(
+          effectiveId,
+        )
+      ) {
         handleBinaryFunction(effectiveId);
         return;
       }
 
       // Unary functions
       const unaryFns = [
-        "sin", "cos", "tan", "asin", "acos", "atan",
-        "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
-        "ln", "log10", "log2",
-        "sqrt", "cbrt", "square", "cube",
-        "tenx", "twox", "exp",
-        "reciprocal", "abs", "factorial", "percent",
-        "floor", "ceil", "round",
-        "deg2rad", "rad2deg",
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
+        "sinh",
+        "cosh",
+        "tanh",
+        "asinh",
+        "acosh",
+        "atanh",
+        "ln",
+        "log10",
+        "log2",
+        "sqrt",
+        "cbrt",
+        "square",
+        "cube",
+        "tenx",
+        "twox",
+        "exp",
+        "reciprocal",
+        "abs",
+        "factorial",
+        "percent",
+        "floor",
+        "ceil",
+        "round",
+        "deg2rad",
+        "rad2deg",
       ];
       if (unaryFns.includes(effectiveId)) {
         handleUnary(effectiveId);
@@ -434,7 +483,7 @@ export function ScientificCalculator() {
       handleMemoryAdd,
       handleMemorySubtract,
       handleAngleMode,
-    ]
+    ],
   );
 
   // Button config
@@ -457,19 +506,77 @@ export function ScientificCalculator() {
 
   const scientificRows: Btn[][] = [
     [
-      { id: "sin", label: "sin", secondLabel: "sin\u207B\u00B9", variant: "function" },
-      { id: "cos", label: "cos", secondLabel: "cos\u207B\u00B9", variant: "function" },
-      { id: "tan", label: "tan", secondLabel: "tan\u207B\u00B9", variant: "function" },
-      { id: "sinh", label: "sinh", secondLabel: "sinh\u207B\u00B9", variant: "function" },
-      { id: "cosh", label: "cosh", secondLabel: "cosh\u207B\u00B9", variant: "function" },
-      { id: "tanh", label: "tanh", secondLabel: "tanh\u207B\u00B9", variant: "function" },
+      { id: "mminus", label: "M\u2212", variant: "memory" },
+      { id: "mc", label: "MC", variant: "memory" },
+      { id: "mod", label: "mod", variant: "operator" },
+      { id: "percent", label: "%", variant: "function" },
+      { id: "anglemode", label: angleMode.toUpperCase(), variant: "memory" },
+      { id: "second", label: "2nd", variant: "equals" },
+    ],
+    [
+      {
+        id: "sin",
+        label: "sin",
+        secondLabel: "sin\u207B\u00B9",
+        variant: "function",
+      },
+      {
+        id: "cos",
+        label: "cos",
+        secondLabel: "cos\u207B\u00B9",
+        variant: "function",
+      },
+      {
+        id: "tan",
+        label: "tan",
+        secondLabel: "tan\u207B\u00B9",
+        variant: "function",
+      },
+      {
+        id: "sinh",
+        label: "sinh",
+        secondLabel: "sinh\u207B\u00B9",
+        variant: "function",
+      },
+      {
+        id: "cosh",
+        label: "cosh",
+        secondLabel: "cosh\u207B\u00B9",
+        variant: "function",
+      },
+      {
+        id: "tanh",
+        label: "tanh",
+        secondLabel: "tanh\u207B\u00B9",
+        variant: "function",
+      },
     ],
     [
       { id: "power", label: "x\u02B8", variant: "function" },
-      { id: "square", label: "x\u00B2", secondLabel: "\u221A", variant: "function" },
-      { id: "cube", label: "x\u00B3", secondLabel: "\u00B3\u221A", variant: "function" },
-      { id: "tenx", label: "10\u02E3", secondLabel: "log", variant: "function" },
-      { id: "twox", label: "2\u02E3", secondLabel: "log\u2082", variant: "function" },
+      {
+        id: "square",
+        label: "x\u00B2",
+        secondLabel: "\u221A",
+        variant: "function",
+      },
+      {
+        id: "cube",
+        label: "x\u00B3",
+        secondLabel: "\u00B3\u221A",
+        variant: "function",
+      },
+      {
+        id: "tenx",
+        label: "10\u02E3",
+        secondLabel: "log",
+        variant: "function",
+      },
+      {
+        id: "twox",
+        label: "2\u02E3",
+        secondLabel: "log\u2082",
+        variant: "function",
+      },
       { id: "exp", label: "e\u02E3", secondLabel: "ln", variant: "function" },
     ],
     [
@@ -478,59 +585,80 @@ export function ScientificCalculator() {
       { id: "factorial", label: "n!", variant: "function" },
       { id: "nthroot", label: "\u02B8\u221Ax", variant: "function" },
       { id: "logyx", label: "log\u2099x", variant: "function" },
-      { id: "scinotation", label: "EXP", variant: "function" },
-    ],
+      { id: "scinotation", label: "e", variant: "function" },
+    ] /*
     [
-      { id: "npr", label: "nPr", variant: "function" },
+      { id: "npr", label: , variant: "function" },
       { id: "ncr", label: "nCr", variant: "function" },
       { id: "gcd", label: "gcd", variant: "function" },
       { id: "lcm", label: "lcm", variant: "function" },
       { id: "floor", label: "\u230A\u230B", variant: "function" },
       { id: "ceil", label: "\u2308\u2309", variant: "function" },
-    ],
+    ] */,
     [
-      { id: "round", label: "rnd", variant: "function" },
-      { id: "deg2rad", label: "D\u2192R", variant: "function" },
-      { id: "rad2deg", label: "R\u2192D", variant: "function" },
-      { id: "pi", label: "\u03C0", variant: "function" },
-      { id: "e", label: "e", variant: "function" },
-      { id: "rand", label: "Rand", variant: "function" },
+      { id: "round", label: "rnd", secondLabel: "nPr", variant: "function" },
+      {
+        id: "deg2rad",
+        label: "D\u2192R",
+        secondLabel: "nCr",
+        variant: "function",
+      },
+      {
+        id: "rad2deg",
+        label: "R\u2192D",
+        secondLabel: "gcd",
+        variant: "function",
+      },
+      { id: "pi", label: "\u03C0", secondLabel: "lcm", variant: "function" },
+      {
+        id: "rand",
+        label: "Rand",
+        secondLabel: "\u230A\u230B",
+        variant: "function",
+      },
+      {
+        id: "rando",
+        label: "Bos",
+        secondLabel: "\u2308\u2309",
+        variant: "function",
+      },
     ],
   ];
 
   const mainRows: Btn[][] = [
     [
-      { id: "clear", label: "AC", variant: "action" },
-      { id: "delete", label: "DEL", variant: "action" },
-      { id: "percent", label: "%", variant: "function" },
-      { id: "mod", label: "mod", variant: "operator" },
-      { id: "divide", label: "\u00F7", variant: "operator" },
-    ],
-    [
       { id: "lparen", label: "(", variant: "function" },
       { id: "rparen", label: ")", variant: "function" },
+      { id: "negate", label: "+/\u2212", variant: "function" },
+      { id: "mr", label: "MR", variant: "memory" },
+      { id: "mplus", label: "M+", variant: "memory" },
+    ],
+    [
       { id: "7", label: "7", variant: "number" },
       { id: "8", label: "8", variant: "number" },
       { id: "9", label: "9", variant: "number" },
+      { id: "clear", label: "AC", variant: "action" },
+      { id: "delete", label: "DEL", variant: "action" },
     ],
     [
-      { id: "negate", label: "+/\u2212", variant: "function" },
-      { id: "ans", label: "Ans", variant: "function" },
       { id: "4", label: "4", variant: "number" },
       { id: "5", label: "5", variant: "number" },
       { id: "6", label: "6", variant: "number" },
+      { id: "multiply", label: "\u00D7", variant: "operator" },
+      { id: "divide", label: "\u00F7", variant: "operator" },
     ],
     [
-      { id: "multiply", label: "\u00D7", variant: "operator" },
-      { id: "subtract", label: "\u2212", variant: "operator" },
       { id: "1", label: "1", variant: "number" },
       { id: "2", label: "2", variant: "number" },
       { id: "3", label: "3", variant: "number" },
+      { id: "add", label: "+", variant: "operator" },
+      { id: "subtract", label: "\u2212", variant: "operator" },
     ],
     [
-      { id: "add", label: "+", variant: "operator" },
-      { id: "0", label: "0", variant: "number", className: "col-span-2" },
+      { id: "0", label: "0", variant: "number" },
       { id: "decimal", label: ".", variant: "number" },
+      { id: "scinotation", label: "EXP", variant: "function" },
+      { id: "ans", label: "Ans", variant: "function" },
       { id: "equals", label: "=", variant: "equals" },
     ],
   ];
@@ -550,7 +678,7 @@ export function ScientificCalculator() {
   }
 
   return (
-    <div className="relative mx-auto flex w-full max-w-lg flex-col gap-2.5 rounded-2xl border border-border bg-card p-3.5 shadow-2xl shadow-primary/5 sm:p-4">
+    <div className="relative mx-auto flex max-w-3xl w-full flex-col gap-2.5 rounded-2xl border border-border bg-card p-3.5 shadow-2xl shadow-primary/5 sm:p-4">
       {/* Header */}
       <div className="flex items-center justify-between px-0.5">
         <h1 className="font-mono text-xs font-bold text-primary tracking-widest uppercase">
@@ -584,7 +712,6 @@ export function ScientificCalculator() {
           </button>
         </div>
       </div>
-
       {/* Display */}
       <CalculatorDisplay
         expression={expression}
@@ -593,8 +720,7 @@ export function ScientificCalculator() {
         isSecond={isSecond}
         memory={memory}
       />
-
-      {/* Memory row */}
+      {/* Memory row 
       <div className="grid grid-cols-6 gap-1">
         {memoryRow.map((btn) => (
           <CalculatorButton
@@ -604,48 +730,60 @@ export function ScientificCalculator() {
             onClick={() => handleButton(btn.id)}
           />
         ))}
+      </div>*/}
+      {/* useIsMobile ? <div className="flex flex-col"> : <div className="flex flex-row-reverse"> */}
+      <div
+        className={size.width < 750 ? "flex flex-col" : "flex flex-row-reverse"}
+      >
+        {/* Scientific functions */}
+        <div
+          className={
+            size.width < 750
+              ? "flex flex-col gap-1"
+              : "flex flex-col gap-1 w-1/2"
+          }
+        >
+          {scientificRows.map((row, ri) => (
+            <div key={`sci-${ri}`} className="grid grid-cols-6 gap-1">
+              {row.map((btn) => (
+                <CalculatorButton
+                  key={btn.id}
+                  label={btn.label}
+                  secondLabel={btn.secondLabel}
+                  isSecond={isSecond}
+                  variant={btn.variant}
+                  onClick={() => handleButton(btn.id)}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="m-1"></div>
+        {/* Main buttons */}
+        <div
+          className={
+            size.width < 750
+              ? "flex flex-col gap-1.5 w-full"
+              : "flex flex-col gap-1 w-1/2"
+          }
+        >
+          {mainRows.map((row, ri) => (
+            <div key={`main-${ri}`} className="grid grid-cols-5 gap-1.5">
+              {row.map((btn, bi) => (
+                <CalculatorButton
+                  key={btn.id + bi}
+                  label={btn.label}
+                  secondLabel={btn.secondLabel}
+                  isSecond={isSecond}
+                  variant={btn.variant}
+                  onClick={() => handleButton(btn.id)}
+                  className={btn.className}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
-
-      {/* Scientific functions */}
-      <div className="flex flex-col gap-1">
-        {scientificRows.map((row, ri) => (
-          <div key={`sci-${ri}`} className="grid grid-cols-6 gap-1">
-            {row.map((btn) => (
-              <CalculatorButton
-                key={btn.id}
-                label={btn.label}
-                secondLabel={btn.secondLabel}
-                isSecond={isSecond}
-                variant={btn.variant}
-                onClick={() => handleButton(btn.id)}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {/* Divider */}
-      <div className="h-px bg-border/60" />
-
-      {/* Main buttons */}
-      <div className="flex flex-col gap-1.5">
-        {mainRows.map((row, ri) => (
-          <div key={`main-${ri}`} className="grid grid-cols-5 gap-1.5">
-            {row.map((btn, bi) => (
-              <CalculatorButton
-                key={btn.id + bi}
-                label={btn.label}
-                secondLabel={btn.secondLabel}
-                isSecond={isSecond}
-                variant={btn.variant}
-                onClick={() => handleButton(btn.id)}
-                className={btn.className}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-
       {/* History overlay */}
       {showHistory && (
         <CalculatorHistory
