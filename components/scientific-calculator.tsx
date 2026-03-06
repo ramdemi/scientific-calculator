@@ -1,9 +1,17 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import ReactDOM from "react-dom/client";
 import { useTheme } from "next-themes";
-import { Moon, Sun, SunMoon, History } from "lucide-react";
-import { useWindowSize } from "hooks/use-windowsize";
+import {
+  Moon,
+  Sun,
+  SunMoon,
+  History,
+  FlipVertical,
+  FlipHorizontal,
+  Square,
+} from "lucide-react";
 import {
   evaluateUnary,
   evaluateBinary,
@@ -13,13 +21,34 @@ import {
 import { CalculatorDisplay } from "./calculator-display";
 import { CalculatorButton, type ButtonVariant } from "./calculator-button";
 import { CalculatorHistory, type HistoryEntry } from "./calculator-history";
+import { CalculatorDialogWrapper } from "./calculator-dialog-wrapper";
+import { ScientificConstantDialog } from "./scientific-constants-dialog";
+import { weps, fonks } from "../lib/imgs";
+import { LayoutRouter } from "next/dist/server/app-render/entry-base";
 
 type CalcState = "input" | "operator" | "result" | "error";
 
+/* const dilog = (id: string) => {
+  let dia = document.getElementById("hypDialog");
+  if (dia?.hasAttribute("data-set")) {
+    dia?.addEventListener(onmMouseDown, (e: React.MouseEvent<HTMLDivElement, MouseEvent>): void => {
+      let cod =
+        e.target.closest("li") != null &&
+        e.target.closest("li").getAttribute("data-code");
+      document.getElementById("hypDialog").close(); 
+      console.log(cod);
+      cod && handleButton("button" + cod);
+    });
+
+    console.log(id);
+    //dia?.addEventListener(close,()=>console.log(value))
+    dia?.removeAttribute("data-set");
+  } 
+};*/
 export function ScientificCalculator() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-
+  const [layout, setLayout] = useState("AUTO");
   // Calculator state
   const [display, setDisplay] = useState("0");
   const [expression, setExpression] = useState("");
@@ -28,7 +57,7 @@ export function ScientificCalculator() {
   const [pendingBinaryFn, setPendingBinaryFn] = useState<string | null>(null);
   const [calcState, setCalcState] = useState<CalcState>("input");
   const [angleMode, setAngleMode] = useState<AngleMode>("deg");
-  const [isSecond, setIsSecond] = useState(false);
+  var [calcMode, setcalcMode] = useState("DEFAULT");
   const [memory, setMemory] = useState(0);
   const [lastAnswer, setLastAnswer] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -37,10 +66,12 @@ export function ScientificCalculator() {
   const [parenStack, setParenStack] = useState<
     { value: number; op: string | null }[]
   >([]);
-  const size = useWindowSize();
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  let diaName: string = "";
 
   const currentValue = useCallback((): number => {
     return Number.parseFloat(display) || 0;
@@ -201,22 +232,27 @@ export function ScientificCalculator() {
   const handleConstant = useCallback(
     (id: string) => {
       let value: number;
-      switch (id) {
-        case "pi":
-          value = Math.PI;
-          break;
-        case "e":
-          value = Math.E;
-          break;
-        case "ans":
-          value = lastAnswer;
-          break;
-        case "rand":
-          value = Math.random();
-          break;
-        default:
-          return;
+      if (id.length > 5) {
+        value = eval(id);
+      } else {
+        switch (id) {
+          case "pi":
+            value = Math.PI;
+            break;
+          case "e":
+            value = Math.E;
+            break;
+          case "ans":
+            value = lastAnswer;
+            break;
+          case "rand":
+            value = Math.random();
+            break;
+          default:
+            return;
+        }
       }
+
       const formatted = formatResult(value);
       setDisplay(formatted);
       if (calcState === "result" || calcState === "error") {
@@ -326,42 +362,69 @@ export function ScientificCalculator() {
   // Button click handler
   const handleButton = useCallback(
     (id: string) => {
+      if (document.getElementById(diaName)?.hasAttribute("open"))
+        document.getElementById(diaName).close();
       // Second function mappings
-      const secondMap: Record<string, string> = {
-        sin: "asin",
-        cos: "acos",
-        tan: "atan",
+      const shiftMap: Record<string, string> = {
+        Sin: "asin",
+        Cos: "acos",
+        Tan: "atan",
+        Hyp: "abs",
         sinh: "asinh",
         cosh: "acosh",
         tanh: "atanh",
-        square: "sqrt",
-        cube: "cbrt",
-        tenx: "log10",
+        Squared: "cube",
+        Root: "cbrt",
+        Log: "tenx",
         twox: "log2",
-        exp: "ln",
-        round: "npr",
-        deg2rad: "ncr",
-        rad2deg: "gcd",
-        pi: "lcm",
+        Ln: "exp",
+        XPowerByY: "nthroot",
+        XPowerBy1Negative: "factorial",
+        ParenthesesOpen: "percent",
+        Multiply: "npr",
+        Divide: "ncr",
+        Exp: "pi",
+        Dot: "rand",
         rand: "floor",
         rando: "ceil",
+        MPlus: "mminus",
+        TimeUnit: "Fact",
+        Num7: "consts",
       };
 
-      const effectiveId = isSecond && secondMap[id] ? secondMap[id] : id;
+      const alphaMap: Record<string, string> = {
+        ENG: "cot",
+        ParenthesesOpen: "acot",
+        Multiply: "gcd",
+        Divide: "lcm",
+        Exp: "e",
+        Dot: "RanInt",
+        Root: "mod",
+      };
+      let ef = id.slice(6);
+      const effectiveId =
+        calcMode == "SHIFT" && shiftMap[ef]
+          ? shiftMap[ef]
+          : calcMode == "ALPHA" && alphaMap[ef]
+            ? alphaMap[ef]
+            : ef;
 
+      if (/^[\+\-]?\d*\.?\d+(?:[Ee][\+\-]?\d+)?$/.test(effectiveId)) {
+        handleConstant(effectiveId);
+      }
       // Digits
-      if (/^[0-9]$/.test(effectiveId)) {
-        appendDigit(effectiveId);
+      if (/(m\d)$/.test(effectiveId)) {
+        appendDigit(effectiveId.slice(-1));
         return;
       }
-      if (effectiveId === "decimal") {
+      if (effectiveId === "Dot") {
         appendDigit(".");
         return;
       }
 
       // Basic operators
       if (
-        ["add", "subtract", "multiply", "divide", "mod"].includes(effectiveId)
+        ["Plus", "Minus", "Multiply", "Divide", "mod"].includes(effectiveId)
       ) {
         performBinaryOp(effectiveId);
         return;
@@ -369,9 +432,16 @@ export function ScientificCalculator() {
 
       // Binary functions
       if (
-        ["power", "nthroot", "logyx", "npr", "ncr", "gcd", "lcm"].includes(
-          effectiveId,
-        )
+        [
+          "XPowerByY",
+          "nthroot",
+          "LogAOfX",
+          "npr",
+          "ncr",
+          "gcd",
+          "lcm",
+          "RanInt",
+        ].includes(effectiveId)
       ) {
         handleBinaryFunction(effectiveId);
         return;
@@ -379,29 +449,33 @@ export function ScientificCalculator() {
 
       // Unary functions
       const unaryFns = [
-        "sin",
-        "cos",
-        "tan",
+        "Sin",
+        "Cos",
+        "Tan",
+        "cot",
         "asin",
         "acos",
         "atan",
+        "acot",
         "sinh",
         "cosh",
         "tanh",
-        "asinh",
-        "acosh",
-        "atanh",
-        "ln",
-        "log10",
+        "coth",
+        "arcsinh",
+        "arccosh",
+        "arctanh",
+        "arccoth",
+        "Ln",
+        "Log",
         "log2",
-        "sqrt",
+        "Root",
         "cbrt",
-        "square",
+        "Squared",
         "cube",
         "tenx",
         "twox",
         "exp",
-        "reciprocal",
+        "XPowerBy1Negative",
         "abs",
         "factorial",
         "percent",
@@ -410,6 +484,7 @@ export function ScientificCalculator() {
         "round",
         "deg2rad",
         "rad2deg",
+        "Fact",
       ];
       if (unaryFns.includes(effectiveId)) {
         handleUnary(effectiveId);
@@ -422,31 +497,48 @@ export function ScientificCalculator() {
         return;
       }
 
+      if (effectiveId === "Hyp") {
+        //dilog();
+        diaName = "hypDialog";
+        const dialog = document.getElementById(diaName);
+        if (dialog && typeof dialog.showModal === "function")
+          dialog.showModal();
+      }
+      if (effectiveId === "consts") {
+        //dilog();
+        diaName = "scientificConstantDialog";
+        const dialog = document.getElementById(diaName);
+        if (dialog && typeof dialog.showModal === "function")
+          dialog.showModal();
+      }
       // Special
       switch (effectiveId) {
-        case "clear":
+        case "Clear":
           handleClear();
           break;
-        case "delete":
+        case "Delete":
           handleDelete();
           break;
-        case "equals":
+        case "Equal":
           handleEquals();
           break;
-        case "negate":
+        case "ChangeNumberSign":
           handleNegate();
           break;
         case "scinotation":
           handleScientificNotation();
           break;
-        case "lparen":
+        case "ParenthesesOpen":
           handleParen("(");
           break;
-        case "rparen":
+        case "ParenthesesClose":
           handleParen(")");
           break;
-        case "second":
-          setIsSecond((s) => !s);
+        case "Shift":
+        case "Alpha":
+          calcMode === "DEFAULT"
+            ? setcalcMode(effectiveId.toUpperCase())
+            : setcalcMode("DEFAULT");
           break;
         case "mc":
           handleMemoryClear();
@@ -454,19 +546,19 @@ export function ScientificCalculator() {
         case "mr":
           handleMemoryRecall();
           break;
-        case "mplus":
+        case "MPlus":
           handleMemoryAdd();
           break;
         case "mminus":
           handleMemorySubtract();
           break;
-        case "anglemode":
+        case "Mode":
           handleAngleMode();
           break;
       }
     },
     [
-      isSecond,
+      calcMode,
       appendDigit,
       performBinaryOp,
       handleBinaryFunction,
@@ -485,7 +577,11 @@ export function ScientificCalculator() {
       handleAngleMode,
     ],
   );
-
+  function handleDataFromChild(
+    e: React.MouseEvent<HTMLDivElement, MouseEvent>,
+  ) {
+    console.log(e.clientX);
+  }
   // Button config
   type Btn = {
     id: string;
@@ -495,179 +591,20 @@ export function ScientificCalculator() {
     className?: string;
   };
 
-  const memoryRow: Btn[] = [
-    { id: "mc", label: "MC", variant: "memory" },
-    { id: "mr", label: "MR", variant: "memory" },
-    { id: "mplus", label: "M+", variant: "memory" },
-    { id: "mminus", label: "M\u2212", variant: "memory" },
-    { id: "second", label: "2nd", variant: "memory" },
-    { id: "anglemode", label: angleMode.toUpperCase(), variant: "memory" },
-  ];
-
-  const scientificRows: Btn[][] = [
-    [
-      { id: "mminus", label: "M\u2212", variant: "memory" },
-      { id: "mc", label: "MC", variant: "memory" },
-      { id: "mod", label: "mod", variant: "operator" },
-      { id: "percent", label: "%", variant: "function" },
-      { id: "anglemode", label: angleMode.toUpperCase(), variant: "memory" },
-      { id: "second", label: "2nd", variant: "equals" },
-    ],
-    [
-      {
-        id: "sin",
-        label: "sin",
-        secondLabel: "sin\u207B\u00B9",
-        variant: "function",
-      },
-      {
-        id: "cos",
-        label: "cos",
-        secondLabel: "cos\u207B\u00B9",
-        variant: "function",
-      },
-      {
-        id: "tan",
-        label: "tan",
-        secondLabel: "tan\u207B\u00B9",
-        variant: "function",
-      },
-      {
-        id: "sinh",
-        label: "sinh",
-        secondLabel: "sinh\u207B\u00B9",
-        variant: "function",
-      },
-      {
-        id: "cosh",
-        label: "cosh",
-        secondLabel: "cosh\u207B\u00B9",
-        variant: "function",
-      },
-      {
-        id: "tanh",
-        label: "tanh",
-        secondLabel: "tanh\u207B\u00B9",
-        variant: "function",
-      },
-    ],
-    [
-      { id: "power", label: "x\u02B8", variant: "function" },
-      {
-        id: "square",
-        label: "x\u00B2",
-        secondLabel: "\u221A",
-        variant: "function",
-      },
-      {
-        id: "cube",
-        label: "x\u00B3",
-        secondLabel: "\u00B3\u221A",
-        variant: "function",
-      },
-      {
-        id: "tenx",
-        label: "10\u02E3",
-        secondLabel: "log",
-        variant: "function",
-      },
-      {
-        id: "twox",
-        label: "2\u02E3",
-        secondLabel: "log\u2082",
-        variant: "function",
-      },
-      { id: "exp", label: "e\u02E3", secondLabel: "ln", variant: "function" },
-    ],
-    [
-      { id: "reciprocal", label: "1/x", variant: "function" },
-      { id: "abs", label: "|x|", variant: "function" },
-      { id: "factorial", label: "n!", variant: "function" },
-      { id: "nthroot", label: "\u02B8\u221Ax", variant: "function" },
-      { id: "logyx", label: "log\u2099x", variant: "function" },
-      { id: "scinotation", label: "e", variant: "function" },
-    ] /*
-    [
-      { id: "npr", label: , variant: "function" },
-      { id: "ncr", label: "nCr", variant: "function" },
-      { id: "gcd", label: "gcd", variant: "function" },
-      { id: "lcm", label: "lcm", variant: "function" },
-      { id: "floor", label: "\u230A\u230B", variant: "function" },
-      { id: "ceil", label: "\u2308\u2309", variant: "function" },
-    ] */,
-    [
-      { id: "round", label: "rnd", secondLabel: "nPr", variant: "function" },
-      {
-        id: "deg2rad",
-        label: "D\u2192R",
-        secondLabel: "nCr",
-        variant: "function",
-      },
-      {
-        id: "rad2deg",
-        label: "R\u2192D",
-        secondLabel: "gcd",
-        variant: "function",
-      },
-      { id: "pi", label: "\u03C0", secondLabel: "lcm", variant: "function" },
-      {
-        id: "rand",
-        label: "Rand",
-        secondLabel: "\u230A\u230B",
-        variant: "function",
-      },
-      {
-        id: "rando",
-        label: "Bos",
-        secondLabel: "\u2308\u2309",
-        variant: "function",
-      },
-    ],
-  ];
-
-  const mainRows: Btn[][] = [
-    [
-      { id: "lparen", label: "(", variant: "function" },
-      { id: "rparen", label: ")", variant: "function" },
-      { id: "negate", label: "+/\u2212", variant: "function" },
-      { id: "mr", label: "MR", variant: "memory" },
-      { id: "mplus", label: "M+", variant: "memory" },
-    ],
-    [
-      { id: "7", label: "7", variant: "number" },
-      { id: "8", label: "8", variant: "number" },
-      { id: "9", label: "9", variant: "number" },
-      { id: "clear", label: "AC", variant: "action" },
-      { id: "delete", label: "DEL", variant: "action" },
-    ],
-    [
-      { id: "4", label: "4", variant: "number" },
-      { id: "5", label: "5", variant: "number" },
-      { id: "6", label: "6", variant: "number" },
-      { id: "multiply", label: "\u00D7", variant: "operator" },
-      { id: "divide", label: "\u00F7", variant: "operator" },
-    ],
-    [
-      { id: "1", label: "1", variant: "number" },
-      { id: "2", label: "2", variant: "number" },
-      { id: "3", label: "3", variant: "number" },
-      { id: "add", label: "+", variant: "operator" },
-      { id: "subtract", label: "\u2212", variant: "operator" },
-    ],
-    [
-      { id: "0", label: "0", variant: "number" },
-      { id: "decimal", label: ".", variant: "number" },
-      { id: "scinotation", label: "EXP", variant: "function" },
-      { id: "ans", label: "Ans", variant: "function" },
-      { id: "equals", label: "=", variant: "equals" },
-    ],
-  ];
-
   const cycleTheme = useCallback(() => {
     if (theme === "light") setTheme("dark");
-    else if (theme === "dark") setTheme("black");
     else setTheme("light");
   }, [theme, setTheme]);
+
+  const cycleLayout = useCallback(() => {
+    if (layout === "AUTO") setLayout("VERTICAL");
+    else if (layout === "VERTICAL") {
+      setLayout("HORIZONTAL");
+    } else setLayout("AUTO");
+    document
+      .getElementById("calculatorPage")
+      ?.setAttribute("data-calculator-layout", layout);
+  }, [layout, setLayout]);
 
   if (!mounted) {
     return (
@@ -678,13 +615,17 @@ export function ScientificCalculator() {
   }
 
   return (
-    <div className="relative mx-auto flex max-w-3xl w-full flex-col gap-2.5 rounded-2xl border border-border bg-card p-3.5 shadow-2xl shadow-primary/5 sm:p-4">
+    <div id="CalculatorContainer" className="">
       {/* Header */}
-      <div className="flex items-center justify-between px-0.5">
-        <h1 className="font-mono text-xs font-bold text-primary tracking-widest uppercase">
-          SCI-CALC
-        </h1>
-        <div className="flex items-center gap-1">
+      <div
+        id="calculator"
+        className="calculator-container"
+        calculator-mode={calcMode}
+      >
+        <div className="flex justify-between items-center  gap-1">
+          <h1 className="font-mono text-xs font-bold text-primary tracking-widest uppercase">
+            SCI-CALC
+          </h1>
           <button
             type="button"
             onClick={() => setShowHistory(true)}
@@ -692,6 +633,23 @@ export function ScientificCalculator() {
             aria-label="Show history"
           >
             <History className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={cycleLayout}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label="Toggle theme"
+          >
+            {layout === "VERTICAL" ? (
+              <FlipVertical className="h-5 w-5" />
+            ) : layout === "HORIZONTAL" ? (
+              <FlipHorizontal className="h-5 w-5" />
+            ) : (
+              <Square className="h-5 w-5" />
+            )}
+            <span className="font-mono font-semibold uppercase text-[11px]">
+              {layout}
+            </span>
           </button>
           <button
             type="button"
@@ -711,79 +669,46 @@ export function ScientificCalculator() {
             </span>
           </button>
         </div>
-      </div>
-      {/* Display */}
-      <CalculatorDisplay
-        expression={expression}
-        result={display}
-        angleMode={angleMode}
-        isSecond={isSecond}
-        memory={memory}
-      />
-      {/* Memory row 
-      <div className="grid grid-cols-6 gap-1">
-        {memoryRow.map((btn) => (
-          <CalculatorButton
-            key={btn.id}
-            label={btn.label}
-            variant={btn.variant}
-            onClick={() => handleButton(btn.id)}
-          />
-        ))}
-      </div>*/}
-      {/* useIsMobile ? <div className="flex flex-col"> : <div className="flex flex-row-reverse"> */}
-      <div
-        className={size.width < 750 ? "flex flex-col" : "flex flex-row-reverse"}
-      >
-        {/* Scientific functions */}
-        <div
-          className={
-            size.width < 750
-              ? "flex flex-col gap-1"
-              : "flex flex-col gap-1 w-1/2"
-          }
-        >
-          {scientificRows.map((row, ri) => (
-            <div key={`sci-${ri}`} className="grid grid-cols-6 gap-1">
-              {row.map((btn) => (
-                <CalculatorButton
-                  key={btn.id}
-                  label={btn.label}
-                  secondLabel={btn.secondLabel}
-                  isSecond={isSecond}
-                  variant={btn.variant}
-                  onClick={() => handleButton(btn.id)}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className="m-1"></div>
-        {/* Main buttons */}
-        <div
-          className={
-            size.width < 750
-              ? "flex flex-col gap-1.5 w-full"
-              : "flex flex-col gap-1 w-1/2"
-          }
-        >
-          {mainRows.map((row, ri) => (
-            <div key={`main-${ri}`} className="grid grid-cols-5 gap-1.5">
-              {row.map((btn, bi) => (
-                <CalculatorButton
-                  key={btn.id + bi}
-                  label={btn.label}
-                  secondLabel={btn.secondLabel}
-                  isSecond={isSecond}
-                  variant={btn.variant}
-                  onClick={() => handleButton(btn.id)}
-                  className={btn.className}
-                />
-              ))}
-            </div>
-          ))}
+
+        {/* Display */}
+        <CalculatorDisplay
+          expression={expression}
+          result={display}
+          angleMode={angleMode}
+          Modeis={calcMode}
+          memory={memory}
+        />
+        <div id="keyboardWrapper">
+          {/* Scientific functions */}
+          <div className="grid grid-cols-6 gap-x-1.5 function-button-container">
+            {fonks.slice(0, 30).map((btn, i) => (
+              <CalculatorButton
+                key={btn.id}
+                bid={btn.id}
+                variant={btn.variant}
+                img1={weps[i * 3 + 0]}
+                img2={weps[i * 3 + 1]}
+                img3={weps[i * 3 + 2]}
+                onClick={() => handleButton(btn.id)}
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-5 gap-1.5 number-button-container">
+            {fonks.slice(30, 50).map((btn, i) => (
+              <CalculatorButton
+                key={btn.id}
+                bid={btn.id}
+                variant={btn.variant}
+                img1={weps[i * 3 + 90]}
+                img2={weps[i * 3 + 91]}
+                img3={weps[i * 3 + 92]}
+                onClick={() => handleButton(btn.id)}
+              />
+            ))}
+          </div>
         </div>
       </div>
+
       {/* History overlay */}
       {showHistory && (
         <CalculatorHistory
@@ -793,6 +718,21 @@ export function ScientificCalculator() {
           onClose={() => setShowHistory(false)}
         />
       )}
+      <div
+        id="calculator-dialog-wrapper"
+        className="z-10"
+        onMouseDown={(e) => {
+          let cod = "button";
+          if (e.target.closest("li") !== null) {
+            cod += e.target.closest("li").getAttribute("data-code");
+
+            handleButton(cod.toLowerCase());
+          }
+        }}
+      >
+        <CalculatorDialogWrapper />
+        <ScientificConstantDialog />
+      </div>
     </div>
   );
 }
@@ -800,15 +740,15 @@ export function ScientificCalculator() {
 // Helper: get operator symbol
 function getOpSymbol(op: string): string {
   switch (op) {
-    case "add":
+    case "Plus":
       return "+";
-    case "subtract":
+    case "Minus":
       return "\u2212";
-    case "multiply":
+    case "Multiply":
       return "\u00D7";
-    case "divide":
+    case "Divide":
       return "\u00F7";
-    case "mod":
+    case "Mod":
       return "mod";
     default:
       return op;
@@ -833,9 +773,9 @@ function getFnLabel(fn: string): string {
     ln: "ln",
     log10: "log",
     log2: "log\u2082",
-    sqrt: "\u221A",
+    Root: "\u221A",
     cbrt: "\u00B3\u221A",
-    square: "sqr",
+    Squared: "sqr",
     cube: "cube",
     power: "pow",
     nthroot: "root",
@@ -843,7 +783,7 @@ function getFnLabel(fn: string): string {
     tenx: "10^",
     twox: "2^",
     exp: "e^",
-    reciprocal: "1/",
+    XPowerBy1Negative: "1/",
     abs: "abs",
     factorial: "fact",
     percent: "%",
@@ -859,3 +799,8 @@ function getFnLabel(fn: string): string {
   };
   return labels[fn] || fn;
 }
+function keyMode(arg0: string, isit: boolean) {
+  console.log(isit);
+}
+
+// The callback function that receives data from the child

@@ -58,7 +58,6 @@ function gamma(z: number): number {
   const t = z + g + 0.5;
   return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
 }
-
 // Permutation nPr
 export function permutation(n: number, r: number): number {
   return factorial(n) / factorial(n - r);
@@ -67,6 +66,40 @@ export function permutation(n: number, r: number): number {
 // Combination nCr
 export function combination(n: number, r: number): number {
   return factorial(n) / (factorial(r) * factorial(n - r));
+}
+//create integer random between min and max
+function rani(a: number, b: number) {
+  return Math.floor(Math.random() * (b - a + 1)) + a;
+}
+// Prime Factors
+function primeFactors(n: number): number {
+  const primes = [];
+  const smallestPrimeFactor = new Array(n + 1).fill(0);
+
+  for (let i = 2; i <= n; ++i) {
+    if (smallestPrimeFactor[i] === 0) {
+      smallestPrimeFactor[i] = i;
+      primes.push(i);
+    }
+
+    for (
+      let j = 0;
+      j < primes.length &&
+      primes[j] <= smallestPrimeFactor[i] &&
+      i * primes[j] <= n;
+      ++j
+    ) {
+      smallestPrimeFactor[i * primes[j]] = primes[j];
+    }
+  }
+
+  const factors = [];
+  while (n > 1) {
+    factors.push(smallestPrimeFactor[n]);
+    n /= smallestPrimeFactor[n];
+  }
+
+  return Math.max(...factors);
 }
 
 // All 52 calculator functions:
@@ -91,17 +124,53 @@ export interface CalcFunction {
 
 export const CALC_FUNCTIONS: CalcFunction[] = [
   // Trig (6)
-  { id: "sin", label: "sin", secondLabel: "sin\u207B\u00B9", category: "trig", action: "unary" },
-  { id: "cos", label: "cos", secondLabel: "cos\u207B\u00B9", category: "trig", action: "unary" },
-  { id: "tan", label: "tan", secondLabel: "tan\u207B\u00B9", category: "trig", action: "unary" },
+  {
+    id: "sin",
+    label: "sin",
+    secondLabel: "sin\u207B\u00B9",
+    category: "trig",
+    action: "unary",
+  },
+  {
+    id: "cos",
+    label: "cos",
+    secondLabel: "cos\u207B\u00B9",
+    category: "trig",
+    action: "unary",
+  },
+  {
+    id: "tan",
+    label: "tan",
+    secondLabel: "tan\u207B\u00B9",
+    category: "trig",
+    action: "unary",
+  },
   { id: "asin", label: "sin\u207B\u00B9", category: "trig", action: "unary" },
   { id: "acos", label: "cos\u207B\u00B9", category: "trig", action: "unary" },
   { id: "atan", label: "tan\u207B\u00B9", category: "trig", action: "unary" },
 
   // Hyperbolic (6)
-  { id: "sinh", label: "sinh", secondLabel: "sinh\u207B\u00B9", category: "hyp", action: "unary" },
-  { id: "cosh", label: "cosh", secondLabel: "cosh\u207B\u00B9", category: "hyp", action: "unary" },
-  { id: "tanh", label: "tanh", secondLabel: "tanh\u207B\u00B9", category: "hyp", action: "unary" },
+  {
+    id: "sinh",
+    label: "sinh",
+    secondLabel: "sinh\u207B\u00B9",
+    category: "hyp",
+    action: "unary",
+  },
+  {
+    id: "cosh",
+    label: "cosh",
+    secondLabel: "cosh\u207B\u00B9",
+    category: "hyp",
+    action: "unary",
+  },
+  {
+    id: "tanh",
+    label: "tanh",
+    secondLabel: "tanh\u207B\u00B9",
+    category: "hyp",
+    action: "unary",
+  },
   { id: "asinh", label: "sinh\u207B\u00B9", category: "hyp", action: "unary" },
   { id: "acosh", label: "cosh\u207B\u00B9", category: "hyp", action: "unary" },
   { id: "atanh", label: "tanh\u207B\u00B9", category: "hyp", action: "unary" },
@@ -118,7 +187,12 @@ export const CALC_FUNCTIONS: CalcFunction[] = [
   { id: "square", label: "x\u00B2", category: "power", action: "unary" },
   { id: "cube", label: "x\u00B3", category: "power", action: "unary" },
   { id: "power", label: "x\u02B8", category: "power", action: "binary" },
-  { id: "nthroot", label: "\u02B8\u221Ax", category: "power", action: "binary" },
+  {
+    id: "nthroot",
+    label: "\u02B8\u221Ax",
+    category: "power",
+    action: "binary",
+  },
   { id: "tenx", label: "10\u02E3", category: "power", action: "unary" },
   { id: "twox", label: "2\u02E3", category: "power", action: "unary" },
 
@@ -167,44 +241,52 @@ export const CALC_FUNCTIONS: CalcFunction[] = [
 export function evaluateUnary(
   fn: string,
   value: number,
-  angleMode: AngleMode
+  angleMode: AngleMode,
 ): number {
   switch (fn) {
-    case "sin":
+    case "Sin":
       return Math.sin(toRadians(value, angleMode));
-    case "cos":
+    case "Cos":
       return Math.cos(toRadians(value, angleMode));
-    case "tan":
+    case "Tan":
       return Math.tan(toRadians(value, angleMode));
+    case "cot":
+      return 1 / Math.tan(toRadians(value, angleMode));
     case "asin":
       return fromRadians(Math.asin(value), angleMode);
     case "acos":
       return fromRadians(Math.acos(value), angleMode);
     case "atan":
       return fromRadians(Math.atan(value), angleMode);
+    case "acot":
+      return 1 / fromRadians(Math.atan(value), angleMode);
     case "sinh":
       return Math.sinh(value);
     case "cosh":
       return Math.cosh(value);
     case "tanh":
       return Math.tanh(value);
-    case "asinh":
+    case "coth":
+      return 1 / Math.tanh(value);
+    case "arcsinh":
       return Math.asinh(value);
-    case "acosh":
+    case "arccosh":
       return Math.acosh(value);
-    case "atanh":
+    case "arctanh":
       return Math.atanh(value);
-    case "ln":
+    case "arccoth":
+      return 1 / Math.atanh(value);
+    case "Ln":
       return Math.log(value);
-    case "log10":
+    case "Log":
       return Math.log10(value);
     case "log2":
       return Math.log2(value);
-    case "sqrt":
+    case "Root":
       return Math.sqrt(value);
     case "cbrt":
       return Math.cbrt(value);
-    case "square":
+    case "Squared":
       return value * value;
     case "cube":
       return value * value * value;
@@ -214,7 +296,7 @@ export function evaluateUnary(
       return Math.pow(2, value);
     case "exp":
       return Math.exp(value);
-    case "reciprocal":
+    case "XPowerBy1Negative":
       return 1 / value;
     case "abs":
       return Math.abs(value);
@@ -232,22 +314,22 @@ export function evaluateUnary(
       return (value * Math.PI) / 180;
     case "rad2deg":
       return (value * 180) / Math.PI;
+    case "Fact":
+      return primeFactors(value);
     default:
       return NaN;
   }
 }
 
-export function evaluateBinary(
-  fn: string,
-  a: number,
-  b: number
-): number {
+export function evaluateBinary(fn: string, a: number, b: number): number {
   switch (fn) {
-    case "power":
+    case "RanInt":
+      return rani(a, b);
+    case "XPowerByY":
       return Math.pow(a, b);
     case "nthroot":
       return Math.pow(a, 1 / b);
-    case "logyx":
+    case "LogAOfX":
       return Math.log(a) / Math.log(b);
     case "npr":
       return permutation(a, b);
@@ -259,13 +341,13 @@ export function evaluateBinary(
       return lcm(a, b);
     case "mod":
       return a % b;
-    case "add":
+    case "Plus":
       return a + b;
-    case "subtract":
+    case "Minus":
       return a - b;
-    case "multiply":
+    case "Multiply":
       return a * b;
-    case "divide":
+    case "Divide":
       return a / b;
     default:
       return NaN;
@@ -290,12 +372,12 @@ function lcm(a: number, b: number): number {
 export function formatResult(value: number): string {
   if (Number.isNaN(value)) return "Error";
   if (!Number.isFinite(value)) return value > 0 ? "Infinity" : "-Infinity";
-  
+
   // Very large or very small numbers: scientific notation
   if (Math.abs(value) >= 1e15 || (Math.abs(value) < 1e-10 && value !== 0)) {
     return value.toExponential(10).replace(/\.?0+e/, "e");
   }
-  
+
   // Regular numbers: up to 12 significant digits
   const str = value.toPrecision(12);
   // Remove trailing zeros after decimal point

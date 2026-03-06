@@ -8,7 +8,7 @@ interface CalculatorDisplayProps {
   expression: string;
   result: string;
   angleMode: AngleMode;
-  isSecond: boolean;
+  Modeis: string;
   memory: number;
 }
 
@@ -16,7 +16,7 @@ export function CalculatorDisplay({
   expression,
   result,
   angleMode,
-  isSecond,
+  Modeis,
   memory,
 }: CalculatorDisplayProps) {
   const resultRef = useRef<HTMLDivElement>(null);
@@ -35,15 +35,15 @@ export function CalculatorDisplay({
   }, [result]);
 
   return (
-    <div className="relative flex flex-col rounded-xl bg-background/50 border border-border/40 px-4 py-3 min-h-[108px] overflow-hidden">
+    <div id="screenWrapper" className="calculator-screen">
       {/* Status badges */}
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center rounded-md bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-primary">
           {angleMode.toUpperCase()}
         </span>
-        {isSecond && (
+        {Modeis && (
           <span className="inline-flex items-center rounded-md bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-widest text-primary">
-            2ND
+            {Modeis}
           </span>
         )}
         {memory !== 0 && (
@@ -66,7 +66,7 @@ export function CalculatorDisplay({
         className={cn(
           "overflow-x-auto scrollbar-none text-right font-mono text-[2.25rem] font-bold leading-tight tracking-tight text-foreground transition-[font-size] duration-100",
           result === "Error" && "text-destructive",
-          (result === "Infinity" || result === "-Infinity") && "text-primary"
+          (result === "Infinity" || result === "-Infinity") && "text-primary",
         )}
       >
         <span className="whitespace-nowrap">{result || "0"}</span>
