@@ -12,39 +12,26 @@ import {
   FlipHorizontal,
   Square,
 } from "lucide-react";
-import {
-  evaluateUnary,
-  evaluateBinary,
-  formatResult,
-  type AngleMode,
-} from "@/lib/calculator";
+
 import { CalculatorDisplay } from "./calculator-display";
 import { CalculatorButton, type ButtonVariant } from "./calculator-button";
 import { CalculatorHistory, type HistoryEntry } from "./calculator-history";
 import { CalculatorDialogWrapper } from "./calculator-dialog-wrapper";
 import { ScientificConstantDialog } from "./scientific-constants-dialog";
 import { weps, fonks } from "../lib/imgs";
+import {
+  compute,
+  FUNCTIONS,
+  CONSTANTS,
+  tokenize,
+  parse,
+  formatResult,
+  type AngleMode,
+} from "@/lib/rpn";
 import { LayoutRouter } from "next/dist/server/app-render/entry-base";
-
+import { set } from "date-fns";
 type CalcState = "input" | "operator" | "result" | "error";
 
-/* const dilog = (id: string) => {
-  let dia = document.getElementById("hypDialog");
-  if (dia?.hasAttribute("data-set")) {
-    dia?.addEventListener(onmMouseDown, (e: React.MouseEvent<HTMLDivElement, MouseEvent>): void => {
-      let cod =
-        e.target.closest("li") != null &&
-        e.target.closest("li").getAttribute("data-code");
-      document.getElementById("hypDialog").close(); 
-      console.log(cod);
-      cod && handleButton("button" + cod);
-    });
-
-    console.log(id);
-    //dia?.addEventListener(close,()=>console.log(value))
-    dia?.removeAttribute("data-set");
-  } 
-};*/
 export function ScientificCalculator() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -58,6 +45,7 @@ export function ScientificCalculator() {
   const [calcState, setCalcState] = useState<CalcState>("input");
   const [angleMode, setAngleMode] = useState<AngleMode>("deg");
   var [calcMode, setcalcMode] = useState("DEFAULT");
+  var [prevResult, setprevResult] = useState(0);
   const [memory, setMemory] = useState(0);
   const [lastAnswer, setLastAnswer] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -77,32 +65,6 @@ export function ScientificCalculator() {
     return Number.parseFloat(display) || 0;
   }, [display]);
 
-  const appendDigit = useCallback(
-    (digit: string) => {
-      if (calcState === "result" || calcState === "error") {
-        setDisplay(digit);
-        setExpression("");
-        setCalcState("input");
-        setPrevValue(null);
-        setPendingOp(null);
-        return;
-      }
-      if (calcState === "operator") {
-        setDisplay(digit);
-        setCalcState("input");
-        return;
-      }
-      if (display === "0" && digit !== ".") {
-        setDisplay(digit);
-      } else if (digit === "." && display.includes(".")) {
-        return;
-      } else {
-        setDisplay(display + digit);
-      }
-    },
-    [display, calcState],
-  );
-
   const handleClear = useCallback(() => {
     setDisplay("0");
     setExpression("");
@@ -112,6 +74,7 @@ export function ScientificCalculator() {
     setCalcState("input");
     setOpenParens(0);
     setParenStack([]);
+    setprevResult(0);
   }, []);
 
   const handleDelete = useCallback(() => {
@@ -122,57 +85,18 @@ export function ScientificCalculator() {
     if (display.length <= 1 || display === "0") {
       setDisplay("0");
     } else {
-      setDisplay(display.slice(0, -1));
+      !expression.includes("?") && setExpression(expression.slice(0, -1));
+      setDisplay(formatResult(compute(expression.slice(0, -1), angleMode)));
     }
-  }, [display, calcState, handleClear]);
-
-  const performBinaryOp = useCallback(
-    (op: string) => {
-      const current = currentValue();
-      if (pendingOp && prevValue !== null && calcState !== "operator") {
-        const result = evaluateBinary(pendingOp, prevValue, current);
-        const formatted = formatResult(result);
-        setDisplay(formatted);
-        setPrevValue(result);
-        setExpression(`${formatted} ${getOpSymbol(op)} `);
-      } else {
-        setPrevValue(current);
-        setExpression(`${display} ${getOpSymbol(op)} `);
-      }
-      setPendingOp(op);
-      setPendingBinaryFn(null);
-      setCalcState("operator");
-    },
-    [currentValue, pendingOp, prevValue, display, calcState],
-  );
-
-  const handleBinaryFunction = useCallback(
-    (fn: string) => {
-      const current = currentValue();
-      setPrevValue(current);
-      setPendingBinaryFn(fn);
-      setPendingOp(null);
-      setExpression(`${getFnLabel(fn)}(${formatResult(current)}, `);
-      setCalcState("operator");
-    },
-    [currentValue],
-  );
+  }, [display, expression, calcState, handleClear]);
 
   const handleEquals = useCallback(() => {
     const current = currentValue();
     let result: number;
     let expr: string;
 
-    if (pendingBinaryFn && prevValue !== null) {
-      result = evaluateBinary(pendingBinaryFn, prevValue, current);
-      expr = `${getFnLabel(pendingBinaryFn)}(${formatResult(prevValue)}, ${formatResult(current)})`;
-    } else if (pendingOp && prevValue !== null) {
-      result = evaluateBinary(pendingOp, prevValue, current);
-      expr = `${formatResult(prevValue)} ${getOpSymbol(pendingOp)} ${formatResult(current)}`;
-    } else {
-      result = current;
-      expr = formatResult(current);
-    }
+    result = current;
+    expr = expression;
 
     const formatted = formatResult(result);
 
@@ -199,27 +123,6 @@ export function ScientificCalculator() {
     ]);
   }, [currentValue, pendingOp, pendingBinaryFn, prevValue]);
 
-  const handleUnary = useCallback(
-    (fn: string) => {
-      const current = currentValue();
-      const result = evaluateUnary(fn, current, angleMode);
-      const formatted = formatResult(result);
-      const fnLabel = getFnLabel(fn);
-
-      if (formatted === "Error") {
-        setDisplay("Error");
-        setExpression(`${fnLabel}(${formatResult(current)})`);
-        setCalcState("error");
-      } else {
-        setDisplay(formatted);
-        setExpression(`${fnLabel}(${formatResult(current)})`);
-        setCalcState("result");
-        setLastAnswer(result);
-      }
-    },
-    [currentValue, angleMode],
-  );
-
   const handleNegate = useCallback(() => {
     if (display === "0") return;
     if (display.startsWith("-")) {
@@ -229,92 +132,24 @@ export function ScientificCalculator() {
     }
   }, [display]);
 
-  const handleConstant = useCallback(
-    (id: string) => {
-      let value: number;
-      if (id.length > 5) {
-        value = eval(id);
-      } else {
-        switch (id) {
-          case "pi":
-            value = Math.PI;
-            break;
-          case "e":
-            value = Math.E;
-            break;
-          case "ans":
-            value = lastAnswer;
-            break;
-          case "rand":
-            value = Math.random();
-            break;
-          default:
-            return;
-        }
-      }
-
-      const formatted = formatResult(value);
-      setDisplay(formatted);
-      if (calcState === "result" || calcState === "error") {
-        setExpression("");
-      }
-      setCalcState("input");
-    },
-    [lastAnswer, calcState],
-  );
-
-  const handleScientificNotation = useCallback(() => {
-    if (!display.includes("e")) {
-      setDisplay(display + "e");
-      setCalcState("input");
-    }
-  }, [display]);
-
-  const handleParen = useCallback(
-    (type: "(" | ")") => {
-      if (type === "(") {
-        setParenStack((prev) => [
-          ...prev,
-          { value: prevValue ?? 0, op: pendingOp },
-        ]);
-        setPrevValue(null);
-        setPendingOp(null);
-        setOpenParens((p) => p + 1);
-        setDisplay("0");
-        setCalcState("input");
-        setExpression((prev) => prev + "(");
-      } else if (type === ")" && openParens > 0) {
-        const current = currentValue();
-        let result = current;
-        if (pendingOp && prevValue !== null) {
-          result = evaluateBinary(pendingOp, prevValue, current);
-        }
-        const top = parenStack[parenStack.length - 1];
-        setParenStack((prev) => prev.slice(0, -1));
-        setPrevValue(top?.value ?? null);
-        setPendingOp(top?.op ?? null);
-        setOpenParens((p) => p - 1);
-        setDisplay(formatResult(result));
-        setCalcState("result");
-        setExpression((prev) => prev + formatResult(current) + ")");
-      }
-    },
-    [openParens, currentValue, pendingOp, prevValue, parenStack],
-  );
-
   // Memory functions
   const handleMemoryClear = useCallback(() => setMemory(0), []);
   const handleMemoryRecall = useCallback(() => {
-    setDisplay(formatResult(memory));
-    setCalcState("input");
-  }, [memory]);
+    setExpression(expression + formatResult(memory));
+    setDisplay(
+      formatResult(compute(expression + formatResult(memory), angleMode)),
+    );
+    //setCalcState("input");
+  }, [expression, memory]);
   const handleMemoryAdd = useCallback(() => {
     setMemory((m) => m + currentValue());
   }, [currentValue]);
   const handleMemorySubtract = useCallback(() => {
     setMemory((m) => m - currentValue());
   }, [currentValue]);
-
+  const handleMemoryStore = useCallback(() => {
+    setMemory((m) => currentValue());
+  }, [currentValue]);
   const handleAngleMode = useCallback(() => {
     setAngleMode((mode) => {
       if (mode === "deg") return "rad";
@@ -332,32 +167,24 @@ export function ScientificCalculator() {
   // Keyboard support
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key >= "0" && e.key <= "9") appendDigit(e.key);
+      /*      if (e.key >= "0" && e.key <= "9") appendDigit(e.key);
       else if (e.key === ".") appendDigit(".");
       else if (e.key === "+") performBinaryOp("add");
       else if (e.key === "-") performBinaryOp("subtract");
       else if (e.key === "*") performBinaryOp("multiply");
       else if (e.key === "/") {
         e.preventDefault();
-        performBinaryOp("divide");
-      } else if (e.key === "Enter" || e.key === "=") handleEquals();
+        performBinaryOp("divide");} */
+      if (e.key === "Enter" || e.key === "=") handleEquals();
       else if (e.key === "Escape") handleClear();
       else if (e.key === "Backspace") handleDelete();
-      else if (e.key === "%") handleUnary("percent");
+      /*       else if (e.key === "%") handleUnary("percent");
       else if (e.key === "(") handleParen("(");
-      else if (e.key === ")") handleParen(")");
+      else if (e.key === ")") handleParen(")"); */
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    appendDigit,
-    performBinaryOp,
-    handleEquals,
-    handleClear,
-    handleDelete,
-    handleUnary,
-    handleParen,
-  ]);
+  }, [handleEquals, handleClear, handleDelete]);
 
   // Button click handler
   const handleButton = useCallback(
@@ -374,32 +201,37 @@ export function ScientificCalculator() {
         cosh: "acosh",
         tanh: "atanh",
         Squared: "cube",
-        Root: "cbrt",
+        sqrt: "cbrt",
         Log: "tenx",
         twox: "log2",
         Ln: "exp",
-        XPowerByY: "nthroot",
-        XPowerBy1Negative: "factorial",
+        pow: "nthroot",
+        XPowerBy1Negative: "fact",
         ParenthesesOpen: "percent",
         Multiply: "npr",
         Divide: "ncr",
         Exp: "pi",
         Dot: "rand",
-        rand: "floor",
-        rando: "ceil",
+        //rand: "floor",
+        //rando: "ceil",
         MPlus: "mminus",
         TimeUnit: "Fact",
         Num7: "consts",
+        Num0: "memin",
       };
-
+      // alpha function mapping
       const alphaMap: Record<string, string> = {
         ENG: "cot",
         ParenthesesOpen: "acot",
         Multiply: "gcd",
         Divide: "lcm",
         Exp: "e",
-        Dot: "RanInt",
-        Root: "mod",
+        Dot: "ranit",
+        sqrt: "mod",
+        Plus: "floor",
+        Minus: "ceil",
+        MPlus: "mrcall",
+        Num0: "memremove",
       };
       let ef = id.slice(6);
       const effectiveId =
@@ -408,95 +240,103 @@ export function ScientificCalculator() {
           : calcMode == "ALPHA" && alphaMap[ef]
             ? alphaMap[ef]
             : ef;
+      let rep: string = "";
+      if (effectiveId === "Exp") {
+        /(\d)$/.test(expression) && setExpression(expression + "E");
+        return;
+      }
 
       if (/^[\+\-]?\d*\.?\d+(?:[Ee][\+\-]?\d+)?$/.test(effectiveId)) {
-        handleConstant(effectiveId);
+        //
       }
       // Digits
       if (/(m\d)$/.test(effectiveId)) {
-        appendDigit(effectiveId.slice(-1));
-        return;
+        ef = effectiveId.slice(-1);
       }
       if (effectiveId === "Dot") {
-        appendDigit(".");
-        return;
+        ef = ".";
+      }
+
+      //out unknown variable mode with Calculator right arrow button deletes question mark.
+      if (effectiveId == "NavigateRight") {
+        if (expression.indexOf("?") > -1) {
+          rep = expression.replace("?", "");
+          ef = "";
+        }
       }
 
       // Basic operators
-      if (
-        ["Plus", "Minus", "Multiply", "Divide", "mod"].includes(effectiveId)
-      ) {
-        performBinaryOp(effectiveId);
-        return;
+      if (["Plus", "Minus", "Multiply", "Divide", "mod"].includes(effectiveId))
+        ef = getOpSymbol(effectiveId);
+
+      //function handling
+      if (effectiveId.toLowerCase() in FUNCTIONS) {
+        setcalcMode("DEFAULT");
+        if (effectiveId === "Squared" || effectiveId === "cube") {
+          ef = /(\d)$/.test(expression)
+            ? getFnLabel(effectiveId)
+            : "?" + getFnLabel(effectiveId);
+        }
+        effectiveId === "pow" ? (ef = "(?)^?") : "";
+        if (effectiveId === "XPowerBy1Negative") {
+          ef = /(\d)$/.test(expression)
+            ? getFnLabel(effectiveId)
+            : "?" + getFnLabel(effectiveId);
+        }
+
+        if (
+          [
+            "XPowerByY",
+            "nthroot",
+            "logb",
+            "npr",
+            "ncr",
+            "gcd",
+            "lcm",
+            "ranit",
+            "mod",
+          ].includes(effectiveId)
+        ) {
+          ef = effectiveId + "(?,?)";
+        } else {
+          ["pow", "cube", "Squared", "XPowerBy1Negative"].indexOf(effectiveId) <
+            0 && (ef = effectiveId + "(?)");
+          if (effectiveId === "rand") ef = "rand()";
+        }
+        setExpression(`${expression}${ef}`);
       }
 
-      // Binary functions
-      if (
-        [
-          "XPowerByY",
-          "nthroot",
-          "LogAOfX",
-          "npr",
-          "ncr",
-          "gcd",
-          "lcm",
-          "RanInt",
-        ].includes(effectiveId)
-      ) {
-        handleBinaryFunction(effectiveId);
-        return;
+      // add values to unkkwon variables
+      if (expression.indexOf("?") > -1 && ef != "" && ef !== "Delete") {
+        rep = expression.replace("?", ef + "?");
+        ef = "";
       }
 
-      // Unary functions
-      const unaryFns = [
-        "Sin",
-        "Cos",
-        "Tan",
-        "cot",
-        "asin",
-        "acos",
-        "atan",
-        "acot",
-        "sinh",
-        "cosh",
-        "tanh",
-        "coth",
-        "arcsinh",
-        "arccosh",
-        "arctanh",
-        "arccoth",
-        "Ln",
-        "Log",
-        "log2",
-        "Root",
-        "cbrt",
-        "Squared",
-        "cube",
-        "tenx",
-        "twox",
-        "exp",
-        "XPowerBy1Negative",
-        "abs",
-        "factorial",
-        "percent",
-        "floor",
-        "ceil",
-        "round",
-        "deg2rad",
-        "rad2deg",
-        "Fact",
-      ];
-      if (unaryFns.includes(effectiveId)) {
-        handleUnary(effectiveId);
-        return;
+      ef == "" && setExpression(() => `${rep}`);
+      ef.length == 1 && setExpression(`${expression}${ef}`);
+
+      // Hamdle builtin constants
+      if (effectiveId == "pi" || effectiveId == "e") {
+        ef = effectiveId;
+        setExpression(`${expression}${ef}`);
+      }
+      if (ef == "" || ef.length <= 2 || ["\^ -1", "rand()"].includes(ef)) {
+        try {
+          const result = compute(
+            ef == "" ? `${rep}` : `${expression}${ef}`,
+            angleMode,
+          );
+          if (!isNaN(result)) setprevResult(result);
+          setcalcMode(isNaN(result) ? "ERROR" : "DEFAULT");
+          const formatted = formatResult(isNaN(result) ? prevResult : result);
+          setDisplay(formatted);
+        } catch (error) {
+          console.log(error);
+          setcalcMode("Error ");
+        }
       }
 
-      // Constants
-      if (["pi", "e", "ans", "rand"].includes(effectiveId)) {
-        handleConstant(effectiveId);
-        return;
-      }
-
+      /*Hyperbolic Functions  Dialogs */
       if (effectiveId === "Hyp") {
         //dilog();
         diaName = "hypDialog";
@@ -504,6 +344,8 @@ export function ScientificCalculator() {
         if (dialog && typeof dialog.showModal === "function")
           dialog.showModal();
       }
+
+      /*Hyperbolic Constants Dialogs */
       if (effectiveId === "consts") {
         //dilog();
         diaName = "scientificConstantDialog";
@@ -526,13 +368,13 @@ export function ScientificCalculator() {
           handleNegate();
           break;
         case "scinotation":
-          handleScientificNotation();
+          //handleScientificNotation();
           break;
         case "ParenthesesOpen":
-          handleParen("(");
+          //handleParen("(");
           break;
         case "ParenthesesClose":
-          handleParen(")");
+          //handleParen(")");
           break;
         case "Shift":
         case "Alpha":
@@ -540,10 +382,10 @@ export function ScientificCalculator() {
             ? setcalcMode(effectiveId.toUpperCase())
             : setcalcMode("DEFAULT");
           break;
-        case "mc":
+        case "memremove":
           handleMemoryClear();
           break;
-        case "mr":
+        case "mrcall":
           handleMemoryRecall();
           break;
         case "MPlus":
@@ -552,24 +394,22 @@ export function ScientificCalculator() {
         case "mminus":
           handleMemorySubtract();
           break;
+        case "memin":
+          handleMemoryStore();
+          break;
         case "Mode":
           handleAngleMode();
           break;
       }
     },
     [
+      prevResult,
+      expression,
       calcMode,
-      appendDigit,
-      performBinaryOp,
-      handleBinaryFunction,
-      handleUnary,
-      handleConstant,
       handleClear,
       handleDelete,
       handleEquals,
       handleNegate,
-      handleScientificNotation,
-      handleParen,
       handleMemoryClear,
       handleMemoryRecall,
       handleMemoryAdd,
@@ -622,8 +462,12 @@ export function ScientificCalculator() {
         className="calculator-container"
         calculator-mode={calcMode}
       >
-        <div className="flex justify-between items-center  gap-1">
-          <h1 className="font-mono text-xs font-bold text-primary tracking-widest uppercase">
+        <div className="flex justify-between items-center border-[3px] gap-1">
+          <h1
+            className="font-mono text-xs font-bold text-primary tracking-widest uppercase"
+            title="out unknown variable mode with Calculator right arrow button deletes question mark."
+            onClick={() => document.getElementById("guppy1")?.focus()}
+          >
             SCI-CALC
           </h1>
           <button
@@ -678,7 +522,7 @@ export function ScientificCalculator() {
           Modeis={calcMode}
           memory={memory}
         />
-        <div id="keyboardWrapper">
+        <div id="keyboardWrapper" className="calculator-surface">
           {/* Scientific functions */}
           <div className="grid grid-cols-6 gap-x-1.5 function-button-container">
             {fonks.slice(0, 30).map((btn, i) => (
@@ -743,11 +587,11 @@ function getOpSymbol(op: string): string {
     case "Plus":
       return "+";
     case "Minus":
-      return "\u2212";
+      return "-"; //"\u2212";
     case "Multiply":
-      return "\u00D7";
+      return "*"; //"\u00D7";
     case "Divide":
-      return "\u00F7";
+      return "/"; //"\u00F7";
     case "Mod":
       return "mod";
     default:
@@ -773,17 +617,17 @@ function getFnLabel(fn: string): string {
     ln: "ln",
     log10: "log",
     log2: "log\u2082",
-    Root: "\u221A",
-    cbrt: "\u00B3\u221A",
-    Squared: "sqr",
-    cube: "cube",
+    sqrt: "sqrt",
+    cbrt: "cbrt",
+    Squared: "^2", //"sqr",
+    cube: "^3", //"cube",
     power: "pow",
     nthroot: "root",
     logyx: "log",
     tenx: "10^",
     twox: "2^",
     exp: "e^",
-    XPowerBy1Negative: "1/",
+    XPowerBy1Negative: "^ -1",
     abs: "abs",
     factorial: "fact",
     percent: "%",

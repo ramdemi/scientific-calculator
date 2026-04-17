@@ -229,7 +229,9 @@ dialog[open]::backdrop {
   background-color: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(3px);
 }
-
+merror {
+  animation: caret-blink 1.25s ease-out infinite;
+}
 @utility scrollbar-none {
   &::-webkit-scrollbar {
     display: none;
@@ -340,12 +342,12 @@ body {
 }
 
 :root {
-  --header-height: 2rem;
+  --header-height: 0.1rem;
 }
 
 @media (min-width: 768px) {
   :root {
-    --header-height: 2.5rem;
+    --header-height: 0.1rem;
   }
 }
 
@@ -410,7 +412,12 @@ body {
   height: var(--calculator-button-function-height-actual);
   border-radius: var(--section-border-radius);
 }
-
+#buttonNavigateLeft > button > img,
+#buttonNavigateUp > button > img,
+#buttonSecondMode > button > img,
+#buttonNavigateDown > button > img {
+  visibility: hidden;
+}
 .button-function svg,
 .button-function img {
   position: absolute;
@@ -611,18 +618,18 @@ math-context-menu menu.show {
 }
 
 :root {
-  --calculator-wrapper-height: 52rem;
-  --calculator-wrapper-max-height: 65rem;
-  --calculator-wrapper-max-height-hoz: 52rem;
+  --calculator-wrapper-height: 56rem;
+  --calculator-wrapper-max-height: 69rem;
+  --calculator-wrapper-max-height-hoz: 44.5rem;
   --calculator-wrapper-width: 28rem;
   --calculator-wrapper-width-hor: 45.7rem;
   --calculator-button-function-height: 2.5rem;
   --calculator-button-number-height: 3rem;
   --calculator-button-top-label-height: 1.45rem;
   --calculator-screen-height: 12rem;
-  --calculator-menu-height: 2.5rem;
+  --calculator-menu-height: 2rem;
   --calculator-keyboard-height: 36.65rem;
-  --calculator-keyboard-height-hoz: 18.8rem;
+  --calculator-keyboard-height-hoz: 17rem;
   --calculator-screen-width: var(--calculator-wrapper-width);
   --calculator-keyboard-width: var(--calculator-wrapper-width);
   --calculator-right-panel-height: var(--calculator-wrapper-height);
@@ -657,7 +664,7 @@ math-context-menu menu.show {
   background: var(--calc-color-bg);
 }
 
-calculator-screen {
+.calculator-screen {
   border-color: var(--calc-color-bg);
   border-radius: var(--calc-border-radius);
   background: var(--calc-color-screen-bg);
@@ -680,7 +687,33 @@ calculator-screen:focus {
 html {
   -webkit-tap-highlight-color: rgba(255, 255, 255, 0);
 }
-
+mo,
+mo[form="infix"] {
+  margin-left: -1px;
+  margin-right: -1px;
+}
+mrow > mo:first-child,
+mtd > mo:first-child,
+math > mo:first-child,
+menclose > mo:first-child,
+msqrt > mo:first-child,
+mo[form="prefix"] {
+  margin-left: -3px;
+  margin-right: -3px;
+}
+mrow > mo:last-child,
+mtd > mo:last-child,
+math > mo:last-child,
+menclose > mo:last-child,
+msqrt > mo:last-child,
+mo[form="postfix"] {
+  margin-left: -3px;
+  margin-right: -3px;
+}
+mo[fence="true"],
+mo[separator="true"] {
+  padding: 0;
+}
 math-field:not(:defined) {
   display: none;
 }
@@ -895,13 +928,13 @@ calculator-tool-bar,
       var(--calculator-keyboard-height)
     );
     --calculator-button-function-height-actual: calc(
-      var(--calculator-keyboard-height-actual) * (50 / 733)
+      var(--calculator-keyboard-height-actual) * (50 / 796)
     );
     --calculator-button-number-height-actual: calc(
-      var(--calculator-keyboard-height-actual) * (57 / 733)
+      var(--calculator-keyboard-height-actual) * (60 / 796)
     );
     --calculator-button-top-label-height-actual: calc(
-      var(--calculator-keyboard-height-actual) * (29 / 733)
+      var(--calculator-keyboard-height-actual) * (29 / 796)
     );
   }
 
@@ -950,13 +983,13 @@ calculator-tool-bar,
       var(--calculator-keyboard-height-hoz)
     );
     --calculator-button-function-height-actual: calc(
-      var(--calculator-keyboard-height-actual) * (25 / 188)
+      var(--calculator-keyboard-height-actual) * (25 / 230)
     );
     --calculator-button-number-height-actual: calc(
-      var(--calculator-keyboard-height-actual) * (30 / 188)
+      var(--calculator-keyboard-height-actual) * (30 / 230)
     );
     --calculator-button-top-label-height-actual: calc(
-      var(--calculator-keyboard-height-actual) * (14.5 / 188)
+      var(--calculator-keyboard-height-actual) * (14.5 / 230)
     );
   }
 
@@ -991,13 +1024,13 @@ calculator-tool-bar,
     var(--calculator-keyboard-height-hoz)
   );
   --calculator-button-function-height-actual: calc(
-    var(--calculator-keyboard-height-actual) * (25 / 188)
+    var(--calculator-keyboard-height-actual) * (25 / 210)
   );
   --calculator-button-number-height-actual: calc(
-    var(--calculator-keyboard-height-actual) * (30 / 188)
+    var(--calculator-keyboard-height-actual) * (30 / 210)
   );
   --calculator-button-top-label-height-actual: calc(
-    var(--calculator-keyboard-height-actual) * (14.5 / 188)
+    var(--calculator-keyboard-height-actual) * (14.5 / 210)
   );
 }
 
@@ -1029,13 +1062,13 @@ calculator-tool-bar,
     var(--calculator-keyboard-height)
   );
   --calculator-button-function-height-actual: calc(
-    var(--calculator-keyboard-height-actual) * (50 / 733)
+    var(--calculator-keyboard-height-actual) * (50 / 825)
   );
   --calculator-button-number-height-actual: calc(
-    var(--calculator-keyboard-height-actual) * (60 / 733)
+    var(--calculator-keyboard-height-actual) * (60 / 825)
   );
   --calculator-button-top-label-height-actual: calc(
-    var(--calculator-keyboard-height-actual) * (29 / 733)
+    var(--calculator-keyboard-height-actual) * (29 / 825)
   );
 }
 
@@ -1389,7 +1422,7 @@ calc-toast[data-type="loading"] .icon.loading {
   --tw-contain-size: ;
   --tw-contain-layout: ;
   --tw-contain-paint: ;
-  --tw-contain-style:                            
+  --tw-contain-style:                                                                                                                
 ;
 }
 
@@ -1444,7 +1477,7 @@ calc-toast[data-type="loading"] .icon.loading {
   --tw-contain-size: ;
   --tw-contain-layout: ;
   --tw-contain-paint: ;
-  --tw-contain-style:                            
+  --tw-contain-style:                                                                                                                
 ;
 }
 

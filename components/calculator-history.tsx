@@ -21,7 +21,7 @@ export function CalculatorHistory({
   onClose,
 }: CalculatorHistoryProps) {
   return (
-    <div className="absolute inset-0 z-10 flex flex-col rounded-2xl bg-card/98 backdrop-blur-sm border border-border overflow-hidden">
+    <div className=" absolute w-1/3 text-black inset-0 z-10 flex flex-col rounded-2xl bg-gray-100 backdrop-blur-sm border border-border overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold text-foreground tracking-wide">

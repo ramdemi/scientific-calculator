@@ -122,7 +122,7 @@ export interface CalcFunction {
   action: "unary" | "binary" | "constant" | "input" | "special";
 }
 
-export const CALC_FUNCTIONS: CalcFunction[] = [
+export const CALC_FUNCTIONS_E: CalcFunction[] = [
   // Trig (6)
   {
     id: "sin",
