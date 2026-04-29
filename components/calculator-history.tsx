@@ -9,7 +9,7 @@ export interface HistoryEntry {
 
 interface CalculatorHistoryProps {
   history: HistoryEntry[];
-  onSelect: (result: string) => void;
+  onSelect: (expression: string, result: string) => void;
   onClear: () => void;
   onClose: () => void;
 }
@@ -64,7 +64,7 @@ export function CalculatorHistory({
               <button
                 key={`history-${history.length - 1 - i}`}
                 type="button"
-                onClick={() => onSelect(entry.result)}
+                onClick={() => onSelect(entry.expression, entry.result)}
                 className="flex flex-col items-end px-4 py-3 text-right transition-colors hover:bg-muted/50 border-b border-border/30 last:border-b-0"
               >
                 <span className="text-xs text-muted-foreground font-mono truncate max-w-full">

@@ -17,7 +17,8 @@ import { CalculatorDisplay } from "./calculator-display";
 import { CalculatorButton, type ButtonVariant } from "./calculator-button";
 import { CalculatorHistory, type HistoryEntry } from "./calculator-history";
 import { CalculatorDialogWrapper } from "./calculator-dialog-wrapper";
-import { ScientificConstantDialog } from "./scientific-constants-dialog";
+import { ScientificConstantsDialog } from "./scientific-constants-dialog";
+import { CustomFunctionsDialog } from "./custom-functions-dialog";
 import { weps, fonks } from "../lib/imgs";
 import {
   compute,
@@ -26,10 +27,13 @@ import {
   tokenize,
   parse,
   formatResult,
+  loadCustomFunctions,
   type AngleMode,
 } from "@/lib/rpn";
+import { storage } from "@/lib/storage";
 import { LayoutRouter } from "next/dist/server/app-render/entry-base";
 import { set } from "date-fns";
+import { se } from "date-fns/locale";
 type CalcState = "input" | "operator" | "result" | "error";
 
 export function ScientificCalculator() {
@@ -48,15 +52,17 @@ export function ScientificCalculator() {
   var [prevResult, setprevResult] = useState(0);
   const [memory, setMemory] = useState(0);
   const [lastAnswer, setLastAnswer] = useState(0);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>(storage.getHistory());
   const [showHistory, setShowHistory] = useState(false);
-  const [openParens, setOpenParens] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState("");
   const [parenStack, setParenStack] = useState<
     { value: number; op: string | null }[]
   >([]);
 
   useEffect(() => {
     setMounted(true);
+    setAngleMode(storage.getAngleMode() as AngleMode);
+    loadCustomFunctions();
   }, []);
 
   let diaName: string = "";
@@ -72,7 +78,7 @@ export function ScientificCalculator() {
     setPendingOp(null);
     setPendingBinaryFn(null);
     setCalcState("input");
-    setOpenParens(0);
+    //setOpenParens(0);
     setParenStack([]);
     setprevResult(0);
   }, []);
@@ -94,34 +100,23 @@ export function ScientificCalculator() {
     const current = currentValue();
     let result: number;
     let expr: string;
-
     result = current;
     expr = expression;
 
     const formatted = formatResult(result);
 
-    if (
-      formatted === "Error" ||
-      formatted === "Infinity" ||
-      formatted === "-Infinity"
-    ) {
-      setDisplay(formatted);
-      setCalcState("error");
-    } else {
-      setDisplay(formatted);
-      setCalcState("result");
-    }
-
-    setExpression(`${expr} =`);
+    setDisplay(formatted);
+    setCalcState("result");
     setLastAnswer(result);
     setPrevValue(null);
     setPendingOp(null);
     setPendingBinaryFn(null);
     setHistory((prev) => [
       ...prev,
-      { expression: `${expr} =`, result: formatted },
+      { expression: `${expr}`, result: `= ${formatted}` },
     ]);
-  }, [currentValue, pendingOp, pendingBinaryFn, prevValue]);
+    storage.addHistory(expr, formatted);
+  }, [currentValue, expression, pendingOp, pendingBinaryFn, prevValue]);
 
   const handleNegate = useCallback(() => {
     if (display === "0") return;
@@ -133,7 +128,10 @@ export function ScientificCalculator() {
   }, [display]);
 
   // Memory functions
-  const handleMemoryClear = useCallback(() => setMemory(0), []);
+  const handleMemoryClear = useCallback(() => {
+    setMemory(0);
+    storage.setMemory(0);
+  }, []);
   const handleMemoryRecall = useCallback(() => {
     setExpression(expression + formatResult(memory));
     setDisplay(
@@ -143,26 +141,33 @@ export function ScientificCalculator() {
   }, [expression, memory]);
   const handleMemoryAdd = useCallback(() => {
     setMemory((m) => m + currentValue());
-  }, [currentValue]);
+    storage.setMemory(memory + currentValue());
+  }, [memory, currentValue]);
   const handleMemorySubtract = useCallback(() => {
     setMemory((m) => m - currentValue());
-  }, [currentValue]);
+    storage.setMemory(memory - currentValue());
+  }, [memory, currentValue]);
   const handleMemoryStore = useCallback(() => {
     setMemory((m) => currentValue());
+    storage.setMemory(currentValue());
   }, [currentValue]);
   const handleAngleMode = useCallback(() => {
-    setAngleMode((mode) => {
-      if (mode === "deg") return "rad";
-      if (mode === "rad") return "grad";
-      return "deg";
-    });
+    setAngleMode(storage.getAngleMode() as AngleMode);
   }, []);
 
-  const handleHistorySelect = useCallback((result: string) => {
-    setDisplay(result);
-    setCalcState("input");
-    setShowHistory(false);
-  }, []);
+  const handleHistorySelect = useCallback(
+    (expres: string, res: string) => {
+      setDisplay(
+        expression === ""
+          ? res
+          : formatResult(compute(expression + res.replace("=", ""), angleMode)),
+      );
+      setCalcState("input");
+      setShowHistory(false);
+      setExpression(expression + expres);
+    },
+    [expression, formatResult, compute, angleMode],
+  );
 
   // Keyboard support
   useEffect(() => {
@@ -189,8 +194,7 @@ export function ScientificCalculator() {
   // Button click handler
   const handleButton = useCallback(
     (id: string) => {
-      if (document.getElementById(diaName)?.hasAttribute("open"))
-        document.getElementById(diaName).close();
+      setDialogOpen("");
       // Second function mappings
       const shiftMap: Record<string, string> = {
         Sin: "asin",
@@ -258,11 +262,9 @@ export function ScientificCalculator() {
       }
 
       //out unknown variable mode with Calculator right arrow button deletes question mark.
-      if (effectiveId == "NavigateRight") {
-        if (expression.indexOf("?") > -1) {
-          rep = expression.replace("?", "");
-          ef = "";
-        }
+      if (effectiveId == "NavigateRight" && expression.indexOf("?") > -1) {
+        rep = expression.replace("?", "");
+        ef = "";
       }
 
       // Basic operators
@@ -312,7 +314,7 @@ export function ScientificCalculator() {
         ef = "";
       }
 
-      ef == "" && setExpression(() => `${rep}`);
+      ef == "" && setExpression(`${rep}`);
       ef.length == 1 && setExpression(`${expression}${ef}`);
 
       // Hamdle builtin constants
@@ -340,18 +342,20 @@ export function ScientificCalculator() {
       if (effectiveId === "Hyp") {
         //dilog();
         diaName = "hypDialog";
-        const dialog = document.getElementById(diaName);
+        /*  const dialog = document.getElementById(diaName);
         if (dialog && typeof dialog.showModal === "function")
-          dialog.showModal();
+          dialog.showModal(); */
+        setDialogOpen("HypDialog");
       }
 
       /*Hyperbolic Constants Dialogs */
       if (effectiveId === "consts") {
         //dilog();
-        diaName = "scientificConstantDialog";
-        const dialog = document.getElementById(diaName);
+        diaName = "scientificConstantsDialog";
+        setDialogOpen("ScientificConstantsDialog");
+        /* const dialog = document.getElementById(diaName);
         if (dialog && typeof dialog.showModal === "function")
-          dialog.showModal();
+          dialog.showModal(); */
       }
       // Special
       switch (effectiveId) {
@@ -398,13 +402,18 @@ export function ScientificCalculator() {
           handleMemoryStore();
           break;
         case "Mode":
+          storage.setAngleMode(
+            angleMode === "deg" ? "rad" : angleMode === "rad" ? "grad" : "deg",
+          );
           handleAngleMode();
+          //storage.setAngleMode(angleMode);
           break;
       }
     },
     [
       prevResult,
       expression,
+      angleMode,
       calcMode,
       handleClear,
       handleDelete,
@@ -434,6 +443,7 @@ export function ScientificCalculator() {
   const cycleTheme = useCallback(() => {
     if (theme === "light") setTheme("dark");
     else setTheme("light");
+    //storage.setTheme(theme);
   }, [theme, setTheme]);
 
   const cycleLayout = useCallback(() => {
@@ -512,6 +522,7 @@ export function ScientificCalculator() {
               {theme}
             </span>
           </button>
+          <CustomFunctionsDialog onSelect={handleButton} />
         </div>
 
         {/* Display */}
@@ -558,24 +569,27 @@ export function ScientificCalculator() {
         <CalculatorHistory
           history={history}
           onSelect={handleHistorySelect}
-          onClear={() => setHistory([])}
+          onClear={() => {
+            setHistory([]);
+            storage.clearHistory();
+          }}
           onClose={() => setShowHistory(false)}
         />
       )}
       <div
         id="calculator-dialog-wrapper"
         className="z-10"
-        onMouseDown={(e) => {
+        /*         onMouseDown={(e) => {
           let cod = "button";
           if (e.target.closest("li") !== null) {
             cod += e.target.closest("li").getAttribute("data-code");
 
             handleButton(cod.toLowerCase());
-          }
-        }}
+          } 
+        }}*/
       >
-        <CalculatorDialogWrapper />
-        <ScientificConstantDialog />
+        <CalculatorDialogWrapper dialogOpen={dialogOpen} />
+        {/* <ScientificConstantsDialog /> */}
       </div>
     </div>
   );
@@ -643,8 +657,3 @@ function getFnLabel(fn: string): string {
   };
   return labels[fn] || fn;
 }
-function keyMode(arg0: string, isit: boolean) {
-  console.log(isit);
-}
-
-// The callback function that receives data from the child

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import type { AngleMode } from "@/lib/calculator";
+import type { AngleMode } from "@/lib/rpn";
 import { asciiToMathML } from "asciimath2ml";
 
 interface CalculatorDisplayProps {

@@ -2,6 +2,8 @@
 export type AngleMode = "deg" | "rad" | "grad";
 type Assoc = "L" | "R";
 
+import { storage } from "./storage";
+
 interface NumToken {
   type: "num";
   value: number;
@@ -54,7 +56,9 @@ export const CONSTANTS: Record<string, number> = {
   degto: Math.PI / 180,
   gradto: Math.PI / 200,
   radto: 1,
+  x: 0,
 };
+
 let anglemul: number = 1;
 // ─── Operators ────────────────────────────────────────────────────────────────
 const OPERATORS: Record<
@@ -69,6 +73,89 @@ const OPERATORS: Record<
   "^": { precedence: 4, assoc: "R", fn: (a, b) => Math.pow(a, b) },
   "//": { precedence: 3, assoc: "L", fn: (a, b) => Math.floor(a / b) },
 };
+
+// ─── Custom Functions ────────────────────────────────────────────────────────────
+export function addCustomFunction(
+  name: string,
+  args: string[],
+  fn: string,
+): void {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error("Invalid function name");
+  }
+
+  // Create a function that takes an array of arguments and maps them to parameter names
+  FUNCTIONS[name] = (argArray: number[]) => {
+    // Create parameter bindings
+    const paramBindings: Record<string, number> = {};
+    args.forEach((param, index) => {
+      paramBindings[param] = argArray[index] ?? 0;
+    });
+
+    // Replace parameter names in the formula with their values
+    let processedFormula = fn;
+    for (const [param, value] of Object.entries(paramBindings)) {
+      // Use word boundaries to avoid partial matches
+      const regex = new RegExp(`\\b${param}\\b`, "g");
+      processedFormula = processedFormula.replace(regex, value.toString());
+    }
+
+    // Evaluate the processed formula
+    return compute(processedFormula);
+  };
+
+  // Persist to storage
+  const customFns = storage.getCustomFns();
+  const existing = customFns.findIndex((f) => f.name === name);
+  const fnDef = { name, params: args, body: fn };
+
+  if (existing !== -1) {
+    customFns[existing] = fnDef;
+  } else {
+    customFns.push(fnDef);
+  }
+  storage.setCustomFns(customFns);
+}
+
+export function removeCustomFunction(name: string): boolean {
+  const removed = delete FUNCTIONS[name];
+
+  // Remove from storage
+  const customFns = storage.getCustomFns();
+  const filtered = customFns.filter((f) => f.name !== name);
+  storage.setCustomFns(filtered);
+
+  return removed;
+}
+
+export function loadCustomFunctions(): void {
+  const customFns = storage.getCustomFns();
+  for (const fn of customFns) {
+    try {
+      // Create a function that takes an array of arguments and maps them to parameter names
+      FUNCTIONS[fn.name] = (argArray: number[]) => {
+        // Create parameter bindings
+        const paramBindings: Record<string, number> = {};
+        fn.params.forEach((param, index) => {
+          paramBindings[param] = argArray[index] ?? 0;
+        });
+
+        // Replace parameter names in the formula with their values
+        let processedFormula = fn.body;
+        for (const [param, value] of Object.entries(paramBindings)) {
+          // Use word boundaries to avoid partial matches
+          const regex = new RegExp(`\\b${param}\\b`, "g");
+          processedFormula = processedFormula.replace(regex, value.toString());
+        }
+
+        // Evaluate the processed formula
+        return compute(processedFormula);
+      };
+    } catch (error) {
+      console.error(`Failed to load custom function "${fn.name}":`, error);
+    }
+  }
+}
 
 // ─── 52 Scientific Functions ──────────────────────────────────────────────────
 export const FUNCTIONS: Record<string, (args: number[]) => number> = {
@@ -359,6 +446,7 @@ function evalRPNFull(rpn: RPNToken[]): number {
       stack.push(OPERATORS[tok.value].fn(a, b));
     } else if (tok.type === "func") {
       const fn = FUNCTIONS[tok.value];
+      if (!fn) throw new Error(`Unknown function: ${tok.value}`);
       const arity = tok.arity ?? 1;
       const args: number[] = [];
       for (let j = 0; j < arity; j++) args.unshift(stack.pop()!);
@@ -375,7 +463,7 @@ export function parse(expr: string): RPNToken[] {
   return toRPNWithArity(tokenize(expr));
 }
 
-export function compute(expr: string, anglemode: string): number {
+export function compute(expr: string, anglemode: string = "deg"): number {
   if (!expr.trim()) throw new Error("Empty expression");
   anglemul =
     anglemode === "deg"

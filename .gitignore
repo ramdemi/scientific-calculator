@@ -12,10 +12,8 @@ node_modules/
 .DS_Store
 .vscode/launch.json
 lib/calculator.ts
-lib/calculator.ts
 lib/eEvaluator.js
 lib/rpnEval.d.ts
 lib/rpnEval.ts
 lib/expressionEvaluator.ts
-lib/calculator.ts
-lib/calculator.ts
+
